@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "npm run db:generate && npm run build:admin && next build",
     "build:admin": "npm --prefix admin run build -- --outDir ../public/admin --emptyOutDir",
-    "vercel-build": "npm run db:generate && npm run db:deploy && npm run build:admin && next build",
+    "vercel-build": "node tools/check-env.mjs && npm run db:generate && npm run db:deploy && npm run build:admin && next build",
     "start": "next start",
     "typecheck": "tsc --noEmit && tsc --noEmit -p backend",
     "db:local": "tsx backend/scripts/local-postgres.ts",
