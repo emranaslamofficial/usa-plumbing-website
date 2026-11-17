@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+.pgdata/
+uploads/
+src/generated/
+public/admin/
+.vercel/

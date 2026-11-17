@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-jakarta), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  /* Brand: deep, trustworthy water blue */
+  --color-brand-50: #eef5ff;
+  --color-brand-100: #d9e8ff;
+  --color-brand-200: #bcd6ff;
+  --color-brand-300: #8ebbff;
+  --color-brand-400: #5a97f8;
+  --color-brand-500: #2f74ec;
+  --color-brand-600: #1d5bd3;
+  --color-brand-700: #1a49ab;
+  --color-brand-800: #1b3f88;
+  --color-brand-900: #1a356b;
+  --color-brand-950: #0f2145;
+
+  /* Ink: navy neutrals for dark sections and text */
+  --color-ink-50: #f5f7fb;
+  --color-ink-100: #e9eef6;
+  --color-ink-200: #d3dbe8;
+  --color-ink-300: #aab7cc;
+  --color-ink-400: #7a8aa6;
+  --color-ink-500: #566683;
+  --color-ink-600: #3f4e6a;
+  --color-ink-700: #2d3a53;
+  --color-ink-800: #1b2740;
+  --color-ink-900: #0f1a31;
+  --color-ink-950: #08101f;
+
+  /* Accent: warm amber reserved for call-to-action buttons (dark text on top = high contrast) */
+  --color-accent-200: #ffe2a6;
+  --color-accent-300: #ffd27a;
+  --color-accent-400: #ffc24d;
+  --color-accent-500: #f9ad1f;
+  --color-accent-600: #e3940b;
+
+  --shadow-card: 0 1px 2px rgb(15 26 49 / 0.04), 0 8px 24px -12px rgb(15 26 49 / 0.12);
+  --shadow-card-hover: 0 2px 4px rgb(15 26 49 / 0.06), 0 22px 40px -18px rgb(15 26 49 / 0.25);
+  --shadow-cta: 0 6px 20px -6px rgb(249 173 31 / 0.55);
+
+  --animate-pulse-ring: pulse-ring 2.4s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+  --animate-float-slow: float-slow 7s ease-in-out infinite;
+
+  @keyframes pulse-ring {
+    0% { transform: scale(0.85); opacity: 0.7; }
+    80%, 100% { transform: scale(1.9); opacity: 0; }
+  }
+  @keyframes float-slow {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+}
+
+@utility container-x {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 80rem;
+  padding-inline: 1rem;
+  @media (width >= 40rem) { padding-inline: 1.5rem; }
+  @media (width >= 64rem) { padding-inline: 2rem; }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    html { scroll-behavior: smooth; }
+  }
+  body {
+    @apply bg-white font-sans text-ink-700 antialiased;
+  }
+  h1, h2, h3, h4 {
+    @apply font-display text-ink-900;
+    text-wrap: balance;
+    letter-spacing: -0.02em;
+  }
+  p { text-wrap: pretty; }
+  :focus-visible {
+    outline: 3px solid var(--color-brand-500);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  /* Anchor targets clear the sticky header */
+  [id] { scroll-margin-top: 6.5rem; }
+  ::selection { background: var(--color-brand-200); color: var(--color-ink-900); }
+}
+
+/* Long-form article typography (no plugin dependency) */
+@layer components {
+  .prose-article { @apply text-[1.0625rem] leading-relaxed text-ink-700; }
+  .prose-article > * + * { margin-top: 1.15em; }
+  .prose-article h2 { @apply mt-12 text-2xl font-bold sm:text-[1.75rem]; }
+  .prose-article h3 { @apply mt-8 text-xl font-semibold; }
+  .prose-article ul, .prose-article ol { @apply space-y-2 pl-6; }
+  .prose-article ul { list-style: disc; }
+  .prose-article ol { list-style: decimal; }
+  .prose-article li::marker { @apply text-brand-500 font-semibold; }
+  .prose-article a { @apply font-medium text-brand-700 underline decoration-brand-300 underline-offset-4 transition-colors hover:decoration-brand-600; }
+}
+
+/* CSS-only entrance for above-the-fold content (no JS needed → fast LCP) */
+@keyframes hero-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hero-enter { animation: hero-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .hero-enter-delayed { animation: hero-in 0.8s 0.15s cubic-bezier(0.22, 1, 0.36, 1) both; }
+}
+
+/* Respect users who prefer reduced motion — kills CSS animation & transitions globally. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
