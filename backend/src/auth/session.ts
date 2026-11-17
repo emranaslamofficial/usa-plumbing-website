@@ -1,9 +1,9 @@
 import type { NextFunction, Request, Response } from "express";
-import { prisma } from "../db.js";
-import { env } from "../config/env.js";
-import { randomToken, safeEqual, sha256 } from "../lib/crypto.js";
-import { forbidden, unauthorized, AppError } from "../lib/http.js";
-import type { PermissionKey } from "./permissions.js";
+import { prisma } from "../db";
+import { env } from "../config/env";
+import { randomToken, safeEqual, sha256 } from "../lib/crypto";
+import { forbidden, unauthorized, AppError } from "../lib/http";
+import type { PermissionKey } from "./permissions";
 
 export const SESSION_COOKIE = "plumb_sid";
 export const CSRF_COOKIE = "plumb_csrf";

@@ -4,14 +4,14 @@ import sharp from "sharp";
 import { mkdir, writeFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { prisma } from "../db.js";
-import { env } from "../config/env.js";
-import { requirePermission } from "../auth/session.js";
-import { body, cleanText, idParam, pagination, parse } from "../lib/validate.js";
-import { badRequest, created, notFound, ok, pageMeta, AppError } from "../lib/http.js";
-import { audit } from "../lib/audit.js";
-import { randomToken } from "../lib/crypto.js";
-import { logger } from "../lib/logger.js";
+import { prisma } from "../db";
+import { env } from "../config/env";
+import { requirePermission } from "../auth/session";
+import { body, cleanText, idParam, pagination, parse } from "../lib/validate";
+import { badRequest, created, notFound, ok, pageMeta, AppError } from "../lib/http";
+import { audit } from "../lib/audit";
+import { randomToken } from "../lib/crypto";
+import { logger } from "../lib/logger";
 import { put, del } from "@vercel/blob";
 
 /**

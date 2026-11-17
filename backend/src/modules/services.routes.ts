@@ -1,11 +1,11 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma, ContentStatus } from "../db.js";
-import { requirePermission, can } from "../auth/session.js";
-import { body, cleanText, idParam, parse, slugSchema, stringArray } from "../lib/validate.js";
-import { created, forbidden, notFound, ok } from "../lib/http.js";
-import { audit, diff } from "../lib/audit.js";
-import { assertSlugFree, faqInputSchema, featureSchema, replaceFaqs, revalidateSite, seoSchema, seoWrite, statusSchema, uniqueSlug } from "../lib/content.js";
+import { prisma, ContentStatus } from "../db";
+import { requirePermission, can } from "../auth/session";
+import { body, cleanText, idParam, parse, slugSchema, stringArray } from "../lib/validate";
+import { created, forbidden, notFound, ok } from "../lib/http";
+import { audit, diff } from "../lib/audit";
+import { assertSlugFree, faqInputSchema, featureSchema, replaceFaqs, revalidateSite, seoSchema, seoWrite, statusSchema, uniqueSlug } from "../lib/content";
 
 export const servicesRouter = Router();
 

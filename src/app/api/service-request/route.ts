@@ -51,25 +51,42 @@ export async function POST(req: Request) {
   const fieldErrors = validateServiceRequest(input, services.map((s) => s.slug));
   if (Object.keys(fieldErrors).length) return json({ ok: false, message: "Please correct the highlighted fields.", fieldErrors }, 422);
 
+  const leadBody = {
+    formType: input.formType === "contact" ? "contact" : "service_request",
+    name: input.name,
+    phone: input.phone,
+    email: input.email || undefined,
+    serviceSlug: input.serviceSlug,
+    zip: input.zip,
+    preferredDate: input.preferredDate || undefined,
+    preferredTime: input.preferredTime || undefined,
+    message: input.message || undefined,
+    startedAt: input.startedAt,
+    submissionKey: input.submissionKey,
+    captchaToken: input.captchaToken,
+    attribution: { ...(input.attribution ?? {}), sourcePath: input.sourcePath ?? input.attribution?.sourcePath },
+  };
+
+  // Same server: store the lead directly through the backend service (validates again, rate-limits, de-dupes)
+  if (process.env.DATABASE_URL) {
+    const pub = await import("../../../../backend/src/modules/public.service");
+    try {
+      const r = await pub.submitLead(leadBody, { ip: clientIp(req), userAgent: req.headers.get("user-agent")?.slice(0, 300) ?? undefined });
+      return json({ ok: true, referenceId: r.referenceId, message: successMessage() });
+    } catch (err) {
+      if (err instanceof pub.PublicInputError) {
+        return json({ ok: false, message: err.status === 429 ? "Too many requests from your connection. Please call us instead." : err.message, fieldErrors: err.details as ServiceRequestResult["fieldErrors"] }, err.status);
+      }
+      console.error("[service-request] failed to store lead", err);
+      return json({ ok: false, message: "We couldn't submit your request right now. Please call us so we can help." }, 500);
+    }
+  }
+
   if (process.env.BACKEND_API_URL) {
     try {
       const r = await backendPost<{ referenceId: string }>(
         "/leads",
-        {
-          formType: input.formType === "contact" ? "contact" : "service_request",
-          name: input.name,
-          phone: input.phone,
-          email: input.email || undefined,
-          serviceSlug: input.serviceSlug,
-          zip: input.zip,
-          preferredDate: input.preferredDate || undefined,
-          preferredTime: input.preferredTime || undefined,
-          message: input.message || undefined,
-          startedAt: input.startedAt,
-          submissionKey: input.submissionKey,
-          captchaToken: input.captchaToken,
-          attribution: { ...(input.attribution ?? {}), sourcePath: input.sourcePath ?? input.attribution?.sourcePath },
-        },
+        leadBody,
         { "X-Client-IP": clientIp(req), "X-Client-User-Agent": req.headers.get("user-agent")?.slice(0, 300) ?? "" },
       );
       if (r.status === 201 || r.status === 200) return json({ ok: true, referenceId: r.data?.referenceId, message: successMessage() });

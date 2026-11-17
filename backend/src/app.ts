@@ -3,26 +3,24 @@ import helmet from "helmet";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { pinoHttp } from "pino-http";
-import path from "node:path";
-import { existsSync } from "node:fs";
 import { MulterError } from "multer";
 import { ZodError } from "zod";
-import { env } from "./config/env.js";
-import { logger } from "./lib/logger.js";
-import { AppError, zodDetails } from "./lib/http.js";
-import { prisma, Prisma } from "./db.js";
-import { requireAuth } from "./auth/session.js";
-import { authRouter } from "./modules/auth.routes.js";
-import { publicRouter, webhooksRouter } from "./modules/public.routes.js";
-import { servicesRouter } from "./modules/services.routes.js";
-import { areasRouter } from "./modules/areas.routes.js";
-import { postsRouter } from "./modules/posts.routes.js";
-import { pagesRouter } from "./modules/pages.routes.js";
-import { leadsRouter, contactMessagesRouter } from "./modules/leads.routes.js";
-import { mediaRouter, UPLOAD_ROOT } from "./modules/media.routes.js";
-import { settingsRouter } from "./modules/settings.routes.js";
-import { usersRouter, rolesRouter } from "./modules/users.routes.js";
-import { keywordsRouter } from "./modules/keywords.routes.js";
+import { env } from "./config/env";
+import { logger } from "./lib/logger";
+import { AppError, zodDetails } from "./lib/http";
+import { prisma, Prisma } from "./db";
+import { requireAuth } from "./auth/session";
+import { authRouter } from "./modules/auth.routes";
+import { publicRouter, webhooksRouter } from "./modules/public.routes";
+import { servicesRouter } from "./modules/services.routes";
+import { areasRouter } from "./modules/areas.routes";
+import { postsRouter } from "./modules/posts.routes";
+import { pagesRouter } from "./modules/pages.routes";
+import { leadsRouter, contactMessagesRouter } from "./modules/leads.routes";
+import { mediaRouter, UPLOAD_ROOT } from "./modules/media.routes";
+import { settingsRouter } from "./modules/settings.routes";
+import { usersRouter, rolesRouter } from "./modules/users.routes";
+import { keywordsRouter } from "./modules/keywords.routes";
 import {
   serviceCategoriesRouter,
   blogCategoriesRouter,
@@ -36,7 +34,7 @@ import {
   dashboardRouter,
   analyticsRouter,
   seoRouter,
-} from "./modules/misc.routes.js";
+} from "./modules/misc.routes";
 
 export function createApp() {
   const app = express();
@@ -132,16 +130,7 @@ export function createApp() {
   api.use((_req, _res, next) => next(new AppError(404, "NOT_FOUND", "Endpoint not found")));
   app.use("/api/v1", api);
 
-  // ── Admin panel SPA (built by /admin → admin/dist) ──
-  const adminDist = path.resolve(process.env.ADMIN_DIST ?? "../admin/dist");
-  if (existsSync(adminDist)) {
-    app.use("/admin", express.static(adminDist, { index: false, maxAge: "1h" }));
-    app.get(/^\/admin(\/.*)?$/, (_req, res) => {
-      res.setHeader("Cache-Control", "no-store");
-      res.sendFile(path.join(adminDist, "index.html"));
-    });
-  }
-  app.get("/", (_req, res) => res.redirect("/admin"));
+  // The admin panel is served by the Next.js server from public/admin (see next.config.ts).
 
   // ── Errors ──
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

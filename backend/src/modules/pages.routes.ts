@@ -1,11 +1,11 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma, ContentStatus, type Prisma } from "../db.js";
-import { requirePermission, can } from "../auth/session.js";
-import { body, cleanText, idParam, parse, slugSchema } from "../lib/validate.js";
-import { badRequest, created, forbidden, notFound, ok } from "../lib/http.js";
-import { audit } from "../lib/audit.js";
-import { assertSlugFree, blocksSchema, faqInputSchema, normalizeBlocks, replaceFaqs, revalidateSite, seoSchema, seoWrite, statusSchema, uniqueSlug } from "../lib/content.js";
+import { prisma, ContentStatus, type Prisma } from "../db";
+import { requirePermission, can } from "../auth/session";
+import { body, cleanText, idParam, parse, slugSchema } from "../lib/validate";
+import { badRequest, created, forbidden, notFound, ok } from "../lib/http";
+import { audit } from "../lib/audit";
+import { assertSlugFree, blocksSchema, faqInputSchema, normalizeBlocks, replaceFaqs, revalidateSite, seoSchema, seoWrite, statusSchema, uniqueSlug } from "../lib/content";
 
 /** Reserved paths already owned by the website's routes. */
 const RESERVED = new Set(["services", "service-areas", "blog", "emergency-plumbing", "request-service", "contact", "about", "api", "admin", "media", "sitemap.xml", "robots.txt", "opengraph-image", "icon.svg"]);

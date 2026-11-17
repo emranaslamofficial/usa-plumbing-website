@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma, PhoneType, NavLocation } from "../db.js";
-import { requirePermission } from "../auth/session.js";
-import { body, cleanText, parse, safeHref } from "../lib/validate.js";
-import { ok, badRequest } from "../lib/http.js";
-import { audit, diff } from "../lib/audit.js";
-import { crudRouter } from "../lib/crud.js";
-import { revalidateSite } from "../lib/content.js";
+import { prisma, PhoneType, NavLocation } from "../db";
+import { requirePermission } from "../auth/session";
+import { body, cleanText, parse, safeHref } from "../lib/validate";
+import { ok, badRequest } from "../lib/http";
+import { audit, diff } from "../lib/audit";
+import { crudRouter } from "../lib/crud";
+import { revalidateSite } from "../lib/content";
 
 export const settingsRouter = Router();
 

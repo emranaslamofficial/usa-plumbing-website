@@ -1,7 +1,7 @@
-import { createApp } from "./app.js";
-import { env } from "./config/env.js";
-import { logger } from "./lib/logger.js";
-import { prisma } from "./db.js";
+import { createApp } from "./app";
+import { env } from "./config/env";
+import { logger } from "./lib/logger";
+import { prisma } from "./db";
 
 const app = createApp();
 const server = app.listen(env.PORT, () => logger.info(`🚰 API listening on port ${env.PORT} — public URL ${env.API_PUBLIC_URL} (admin at /admin)`));

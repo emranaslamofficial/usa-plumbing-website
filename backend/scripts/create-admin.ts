@@ -7,11 +7,11 @@
  * password is generated and printed ONCE. Change it after first login.
  * Add --reset to reset the password of an existing account.
  */
-import "dotenv/config";
+import "../load-env";
 import { randomBytes } from "node:crypto";
 import { parseArgs } from "node:util";
-import { prisma } from "../src/db.js";
-import { hashPassword } from "../src/auth/password.js";
+import { prisma } from "../src/db";
+import { hashPassword } from "../src/auth/password";
 
 const { values } = parseArgs({ options: { email: { type: "string" }, name: { type: "string" }, reset: { type: "boolean", default: false } } });
 const email = values.email?.trim().toLowerCase();

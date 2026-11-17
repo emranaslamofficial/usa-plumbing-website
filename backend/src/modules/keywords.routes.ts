@@ -2,13 +2,13 @@ import { Router } from "express";
 import multer from "multer";
 import path from "node:path";
 import { z } from "zod";
-import { prisma, KeywordIntent, KeywordPriority, KeywordRole, KeywordStatus, type Prisma } from "../db.js";
-import { requirePermission } from "../auth/session.js";
-import { body, cleanText, idParam, pagination, parse } from "../lib/validate.js";
-import { AppError, badRequest, conflict, created, notFound, ok, pageMeta } from "../lib/http.js";
-import { audit } from "../lib/audit.js";
-import { importKeywords, intentSignature, normalizeKeyword, parseKeywordFile } from "./keywords.service.js";
-import { revalidateSite } from "../lib/content.js";
+import { prisma, KeywordIntent, KeywordPriority, KeywordRole, KeywordStatus, type Prisma } from "../db";
+import { requirePermission } from "../auth/session";
+import { body, cleanText, idParam, pagination, parse } from "../lib/validate";
+import { AppError, badRequest, conflict, created, notFound, ok, pageMeta } from "../lib/http";
+import { audit } from "../lib/audit";
+import { importKeywords, intentSignature, normalizeKeyword, parseKeywordFile } from "./keywords.service";
+import { revalidateSite } from "../lib/content";
 
 export const keywordsRouter = Router();
 

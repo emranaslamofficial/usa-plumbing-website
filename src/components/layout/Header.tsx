@@ -23,7 +23,7 @@ interface Props {
 
 export function Header({ businessName, phone, services, emergencyLabel, hoursSummary, nav, logo }: Props) {
   const NAV = nav;
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "/";
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [servicesOpen, setServicesOpen] = useState(false);

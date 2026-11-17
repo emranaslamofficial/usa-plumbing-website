@@ -1,12 +1,12 @@
 import { Router, type Request } from "express";
 import { z, type ZodObject, type ZodRawShape } from "zod";
-import { prisma } from "../db.js";
-import { requirePermission } from "../auth/session.js";
-import type { PermissionKey } from "../auth/permissions.js";
-import { created, notFound, ok, pageMeta } from "./http.js";
-import { body, idParam, pagination, parse, slugify } from "./validate.js";
-import { audit, diff } from "./audit.js";
-import { assertSlugFree, revalidateSite } from "./content.js";
+import { prisma } from "../db";
+import { requirePermission } from "../auth/session";
+import type { PermissionKey } from "../auth/permissions";
+import { created, notFound, ok, pageMeta } from "./http";
+import { body, idParam, pagination, parse, slugify } from "./validate";
+import { audit, diff } from "./audit";
+import { assertSlugFree, revalidateSite } from "./content";
 
 /**
  * Generic, permission-checked CRUD router for simple lookup tables

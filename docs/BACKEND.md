@@ -1,24 +1,26 @@
 # Backend, Database, CMS & Admin Panel
 
-The project is made of three apps that deploy separately:
+Everything runs in **one Next.js server on one domain**:
 
-| App | Folder | Tech | Port (dev) |
-|---|---|---|---|
-| Public website | `/` (root) | Next.js 16, React 19, Tailwind 4 | 3000 |
-| API + CMS backend | `backend/` | Node.js, Express 5, TypeScript, Prisma 7, PostgreSQL | 4000 |
-| Admin panel | `admin/` | React 19 + Vite SPA, served by the API at `/admin` | 5173 in dev, `/admin` in prod |
+| URL | What | Code |
+|---|---|---|
+| `/` … | Public website | `src/app` |
+| `/admin` | Admin panel (React SPA, built into `public/admin`) | `admin/` |
+| `/api/v1/*` | CMS / admin REST API (Express app) | `backend/src`, mounted by `src/pages/api/v1/[[...path]].ts` |
 
 ```
-Visitor ──► Next.js website ──(server-to-server, Bearer PUBLIC_API_KEY)──► /api/v1/public/*  ─┐
-                │  /api/service-request  (lead forms)                                          ├─► PostgreSQL
-                │  /api/track            (CTA click beacons)                                    │
-                │  proxy.ts              (CMS redirects)                                       │
-Staff ──────► /admin (React SPA) ──(httpOnly session cookie + CSRF header)──► /api/v1/admin/* ┘
-Backend ──► POST {site}/api/revalidate after every content edit → pages refresh immediately
+Visitor ──► Next.js pages ──(in-process, no HTTP)──► backend/src/modules/public.service.ts ─┐
+               │  /api/service-request (forms) ─► public.service.submitLead                  ├─► PostgreSQL
+               │  /api/track (CTA clicks)      ─► public.service.recordCtaClick              │   (Prisma)
+               │  proxy.ts (redirects)         ─► /api/v1/public/redirects                    │
+Staff ──────► /admin ──(httpOnly session cookie + CSRF header)──► /api/v1/admin/*  ──────────┘
+Admin edit ─► POST /api/revalidate (same site) → cached pages refresh immediately
 Call-tracking provider ──(HMAC-signed webhook)──► /api/v1/webhooks/calls/:provider
 ```
 
-The browser never calls the backend's public API directly, so the API key never reaches the client. Staff use the admin panel on the API's own origin, which keeps cookies first-party with no cross-site CORS.
+The website reads content straight from the database through the same service code the API uses. That means it needs no HTTP round trip, no extra API key and no second server, and pages can be built without a running API. Staff use the admin panel on the same origin, so cookies stay first-party and there's no CORS.
+
+Deploying to Vercel: **[DEPLOY-VERCEL.md](DEPLOY-VERCEL.md)**.
 
 ---
 
@@ -30,13 +32,14 @@ backend/
 │  ├─ schema.prisma            database schema (all models, enums, indexes)
 │  ├─ migrations/              SQL migrations (commit these)
 │  └─ seed.ts                  roles/permissions, Phase-1 content, keyword sheet import
-├─ prisma.config.ts            Prisma 7 config (schema path, DATABASE_URL, seed command)
+├─ prisma.config.ts            Prisma 7 config (run with --config backend/prisma.config.ts from the root)
+├─ load-env.ts                 loads root .env.local/.env for CLI scripts
 ├─ scripts/
 │  ├─ local-postgres.ts        real PostgreSQL for local dev without installing it (npm run db:local)
 │  └─ create-admin.ts          create/reset an Owner account (npm run admin:create)
 ├─ src/
-│  ├─ server.ts                HTTP server, graceful shutdown, session cleanup job
-│  ├─ app.ts                   Express app: security headers, CORS, parsers, routers, error handler, /media, /admin
+│  ├─ app.ts                   Express app: security headers, parsers, routers, error handler (mounted at /api/v1)
+│  ├─ server.ts                optional standalone server (if you ever host the API separately)
 │  ├─ db.ts                    Prisma client (pg driver adapter)
 │  ├─ config/env.ts            environment validation (process exits on bad config)
 │  ├─ auth/
@@ -54,7 +57,8 @@ backend/
 │  │  └─ logger.ts             pino (redacts auth headers, cookies, passwords)
 │  ├─ modules/                 one router per domain
 │  │  ├─ auth.routes.ts        login, 2FA, logout, me, password change/reset
-│  │  ├─ public.routes.ts      website content API, lead intake, CTA tracking, call webhook
+│  │  ├─ public.service.ts     website content + lead/CTA intake (used in-process by the site AND by the API)
+│  │  ├─ public.routes.ts      thin REST wrapper around public.service + call-tracking webhook
 │  │  ├─ public.serializers.ts DB rows → the website's TypeScript types
 │  │  ├─ leads.service.ts      lead creation: spam traps, idempotency, de-dupe, notifications
 │  │  ├─ leads.routes.ts       admin leads + contact messages + CSV export
@@ -69,10 +73,15 @@ backend/
 │  │  └─ misc.routes.ts        categories, tags, authors, FAQs, testimonials, redirects, states,
 │  │                           audit log, dashboard, analytics, SEO overview
 │  └─ generated/prisma/        generated client (do not edit, git-ignored)
-└─ uploads/                    uploaded media (local disk storage; git-ignored)
+├─ uploads/                    local uploaded media when no Blob store is connected (git-ignored)
+└─ .pgdata/                    local PostgreSQL data (git-ignored)
+
+src/pages/api/v1/[[...path]].ts   hands /api/v1/* to the Express app
+src/lib/api/direct.ts             website content provider: database via public.service (cached, tag "content")
+src/app/media/[...path]/route.ts  serves local-disk uploads (development)
 
 admin/
-├─ src/main.tsx                routes + permission gates
+├─ src/main.tsx                routes + permission gates (built to ../public/admin, base path /admin)
 ├─ src/lib/                    api client (CSRF), auth context
 ├─ src/components/             UI kit, Layout, ResourcePage (generic CRUD), MediaPicker,
 │                              BlockEditor (blog/page editor), SEO panel, list editors
@@ -157,7 +166,7 @@ Uses session cookies: `plumb_sid` is httpOnly, SameSite=Strict, and Secure in pr
 
 Sessions expire after `SESSION_TTL_HOURS` (default 12), or after `SESSION_IDLE_MINUTES` (default 120) without activity. Passwords are hashed with Argon2id and are never included in any response.
 
-### 3.2 Public API (`/public/*`, used by the Next.js server)
+### 3.2 Public API (`/public/*`, server-to-server; the website itself calls public.service in-process)
 
 Every public endpoint requires `Authorization: Bearer {PUBLIC_API_KEY}`. Only published content is returned (posts also include scheduled posts whose time has passed).
 
@@ -260,213 +269,159 @@ Contact-form submissions (`formType: "contact"`) create both a `Lead` (source CO
 
 ## 4. Environment variables
 
-### `backend/.env`
+All variables live in one place: `.env.local` locally (template: [`.env.example`](../.env.example)), or **Vercel → Settings → Environment Variables**.
 
-| Variable | Required | Example / default | Purpose |
-|---|---|---|---|
-| `NODE_ENV` | | `production` | |
-| `PORT` | | `4000` | |
-| `DATABASE_URL` | ✔ | `postgresql://user:pass@host:5432/plumbing?sslmode=require` | |
-| `API_PUBLIC_URL` | ✔ | `https://api.example.com` | Used for reset links and the admin URL |
-| `SITE_URL` | | `https://www.example.com` | |
-| `CORS_ORIGINS` | | `http://localhost:5173` | Extra origins allowed to call the admin/auth API with credentials (the Vite dev server) |
-| `PUBLIC_API_KEY` | ✔ | 32+ random chars | Must equal the site's `BACKEND_API_KEY` |
-| `APP_ENCRYPTION_KEY` | ✔ | 64 hex chars | 2FA secret encryption and IP/phone HMAC. **Never change it after launch.** |
-| `SESSION_TTL_HOURS` / `SESSION_IDLE_MINUTES` | | `12` / `120` | |
-| `COOKIE_SECURE` | | auto (`true` in production) | |
-| `SITE_REVALIDATE_URL` / `SITE_REVALIDATE_SECRET` | ✔ for instant updates | `https://www.example.com/api/revalidate` | Secret must equal the site's `REVALIDATE_SECRET` |
-| `UPLOAD_DIR` / `UPLOAD_MAX_MB` | | `./uploads` / `8` | Use a persistent volume |
-| `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` `MAIL_FROM` | for email | | Without these, emails are only logged |
-| `LEAD_NOTIFY_EMAILS` | | `office@company.com` | Combined with the list in Admin → System |
-| `CALL_TRACKING_WEBHOOK_SECRET` | for call tracking | | |
-| `LOG_LEVEL` / `TRUST_PROXY` | | `info` / `loopback` | Behind a load balancer set `TRUST_PROXY=1` (number of hops) |
-| `ADMIN_DIST` | | `../admin/dist` | Folder of the built admin panel |
+| Variable | Required | Purpose |
+|---|---|---|
+| `NEXT_PUBLIC_SITE_URL`, `SITE_URL` | ✔ | Public address, e.g. `https://www.example.com` |
+| `DATABASE_URL` | ✔ | PostgreSQL (pooled URL on Neon). Empty = website runs on sample data, no admin. |
+| `DATABASE_URL_UNPOOLED` | Neon | Direct URL for migrations (Neon adds it automatically) |
+| `PUBLIC_API_KEY` | ✔ | 32+ random characters; protects `/api/v1/public/*` |
+| `APP_ENCRYPTION_KEY` | ✔ | 64 hex characters: 2FA secret encryption and IP/phone hashing. **Never change it after launch.** |
+| `REVALIDATE_SECRET` | ✔ | Lets admin edits purge the site cache |
+| `CONTENT_REVALIDATE_SECONDS` | | Page cache lifetime (default 300) |
+| `BLOB_READ_WRITE_TOKEN` | Vercel | Image storage (added when you connect a Blob store). Empty = `backend/uploads`. |
+| `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` `MAIL_FROM` | for email | Password resets and lead notifications (otherwise only logged) |
+| `LEAD_NOTIFY_EMAILS` | | New-lead recipients (also editable in Admin → System) |
+| `CALL_TRACKING_WEBHOOK_SECRET` | for call tracking | HMAC secret for provider webhooks |
+| `SESSION_TTL_HOURS` / `SESSION_IDLE_MINUTES` | | Admin session limits (12 h / 120 min) |
+| `TRUST_PROXY` | | Proxy hops in front of the app (automatically `1` on Vercel) |
 
-Generate the secrets with:
+## 5. Local setup (Windows, nothing to install)
 
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
+Double-click **`START WEBSITE.bat`**. It uses the Node.js bundled in `tools/node`, starts PostgreSQL (`backend/.pgdata`), applies migrations, seeds a new database, rebuilds the admin panel and website when their code changed, and serves everything on **http://localhost:3000** (admin at **/admin**). Stop it with Ctrl+C or **`STOP WEBSITE.bat`**.
 
-### Website `.env.local`
+### Manual / other OS
 
-`NEXT_PUBLIC_SITE_URL`, `BACKEND_API_URL`, `BACKEND_API_KEY`, `CONTENT_REVALIDATE_SECONDS`, `REVALIDATE_SECRET` (see `.env.example`).
+You need Node.js 20.19+.
 
-### Admin build
-
-`VITE_SITE_URL=https://www.example.com` is used for the "View on site" links.
-
----
-
-## 5. Local setup
-
-Requires **Node.js 20.19+**. PostgreSQL is optional locally, because `db:local` runs a real Postgres from npm.
-
-1. Install the backend dependencies:
+1. Install the dependencies:
 
    ```bash
-   cd backend && npm install
+   npm install && npm --prefix admin install
    ```
 
-2. Create the backend `.env` with `DATABASE_URL=postgresql://plumbing:plumbing@localhost:5433/plumbing` plus the secrets listed in section 4:
+2. Create your env file, then fill in the secrets from section 4:
 
    ```bash
-   cp .env.example .env
+   cp .env.example .env.local
    ```
 
-3. Start the local database and keep it running:
+3. Start the local database and keep it running (or point `DATABASE_URL` at any PostgreSQL):
 
    ```bash
    npm run db:local
    ```
 
-4. In a second terminal, from `backend/`, apply the migrations and generate the client:
-
-   ```bash
-   npm run db:deploy && npm run db:generate
-   ```
-
-5. Seed roles, permissions, the existing content and the keyword sheet:
-
-   ```bash
-   npm run db:seed
-   ```
-
-6. Start the API on http://localhost:4000:
-
-   ```bash
-   npm run dev
-   ```
-
-7. Install the admin panel's dependencies:
-
-   ```bash
-   cd admin && npm install
-   ```
-
-8. Build the admin panel so the API serves it at http://localhost:4000/admin:
-
-   ```bash
-   npm run build
-   ```
-
-   For admin development with hot reload, use `npm run dev` instead (http://localhost:5173/admin).
-
-9. Set up the website: from the project root, run `npm install`, then set `BACKEND_API_URL`, `BACKEND_API_KEY` and `REVALIDATE_SECRET` in `.env.local` (shown in section 4).
-
-10. Start the website:
-
-   ```bash
-   npm run dev
-   ```
-
-The website still runs without the backend: leave `BACKEND_API_URL` empty and it falls back to the built-in mock data.
-
-## 6. Migrations
-
-| Task | Command |
-|---|---|
-| Change the schema (dev) | edit `prisma/schema.prisma`, then `npx prisma migrate dev --name <change>` (creates SQL in `prisma/migrations/`; commit it) |
-| Apply in production / CI | `npm run db:deploy` (`prisma migrate deploy`, applies pending migrations only) |
-| Regenerate the client | `npm run db:generate` (also part of `npm run build`) |
-| Inspect data | `npm run db:studio` |
-
-Never run `migrate dev` or `migrate reset` against production.
-
-## 7. Admin credentials
-
-There are no default passwords. Create the first Owner in one of two ways:
-
-- **Seed with env vars:** set `ADMIN_EMAIL`, `ADMIN_PASSWORD` (12+ characters, letters and a number) and optionally `ADMIN_NAME` before `npm run db:seed`. Remove them from the environment afterwards.
-- **Run the CLI:**
-
-  ```bash
-  npm run admin:create -- --email owner@company.com --name "Jane Smith"
-  ```
-
-  This prints a strong temporary password once. Add `--reset` to reset a locked-out account.
-
-After signing in at `/admin`:
-- Change your password and turn on 2FA in **My account**.
-- Add staff in **Users** with the least-privileged role: Owner, Administrator, Editor or Dispatcher. Custom roles can be created in **Roles & Permissions**.
-
-Locally, the seed created `owner@example.com` / `LocalDevOnly-2026` for testing only. Delete it, or reset its password, before any deployment.
-
-## 8. Frontend integration
-
-- **Content provider:** set `BACKEND_API_URL` and the site switches from `src/lib/api/mock` to [`src/lib/api/http.ts`](../src/lib/api/http.ts). Both implement `ContentApi` ([`src/lib/api/types.ts`](../src/lib/api/types.ts)), so pages don't change.
-- **Caching:** content fetches use ISR (`CONTENT_REVALIDATE_SECONDS`) and the `content` cache tag. After any admin edit the backend calls `POST /api/revalidate`, so changes appear on the next page view.
-- **Content controlled by the CMS:**
-  - business information, phones, hours, emergency wording and trust badges
-  - logo and favicon
-  - header menu, footer links and footer options
-  - services, service areas and posts
-  - CMS pages, including the legal pages and any custom page at `/{slug}`
-  - homepage FAQs and testimonials
-  - redirects, robots and the sitemap
-  - SEO overrides
-  - analytics and call-tracking scripts
-- **Forms:** `ServiceRequestForm` posts to `/api/service-request`, which forwards to the backend with the visitor IP, attribution and idempotency key. The contact page sends `formType="contact"`.
-- **Tracking:** the `Tracking` component captures first-touch attribution in `sessionStorage` and records CTA clicks.
-- **Builds:** `next build` fetches content, so the API must be reachable during the build.
-
-## 9. Production deployment
-
-**Database:** use managed PostgreSQL 15+ (Neon, Supabase, AWS RDS, Cloud SQL) with automated backups and point-in-time recovery, and connect with `sslmode=require`.
-
-**API and admin** (any Node host: Render, Railway, Fly.io, a VPS with Docker or PM2):
-
-1. Build the admin panel:
-
-   ```bash
-   cd admin && npm ci && VITE_SITE_URL=https://www.example.com npm run build
-   ```
-
-2. Build the backend:
-
-   ```bash
-   cd backend && npm ci && npm run build
-   ```
-
-   This generates the Prisma client and bundles `dist/server.js`.
-
-3. Apply migrations on every release:
+4. Apply the database schema:
 
    ```bash
    npm run db:deploy
    ```
 
-4. Seed once, on the first deploy only:
+5. Load roles, the existing content and the keyword sheet:
 
    ```bash
    npm run db:seed
    ```
 
-5. Create the Owner account (section 7).
+6. Create your admin login:
 
-6. Start the server:
+   ```bash
+   npm run admin:create -- --email you@company.com --name "Your Name"
+   ```
+
+7. Build the admin panel, generate the database client and build the website:
+
+   ```bash
+   npm run build
+   ```
+
+8. Start the server at http://localhost:3000:
 
    ```bash
    npm start
    ```
 
-   Run it behind HTTPS (the platform's TLS, or nginx/Caddy) at e.g. `https://api.example.com` (admin at `https://api.example.com/admin`), and set `TRUST_PROXY=1`.
+For admin UI development with hot reload, run `npm run dev` at the root and `npm --prefix admin run dev`, then open http://localhost:5173/admin.
 
-7. Mount `UPLOAD_DIR` on a persistent volume, or swap `media.routes.ts` storage to S3/R2. The DB schema already stores URLs.
+## 6. Migrations
 
-8. Point a health check at `GET /health`.
+| Task | Command (from the project root) |
+|---|---|
+| Change the schema | edit `backend/prisma/schema.prisma`, then `npm run db:migrate -- --name <change>` (commit `backend/prisma/migrations/`) |
+| Apply in production | runs automatically in the Vercel build (`npm run vercel-build`), or `npm run db:deploy` |
+| Regenerate the client | `npm run db:generate` (part of every build) |
+| Browse data | `npm run db:studio` |
 
-**Website** (Vercel or any Node host):
+Never run `migrate dev` or `migrate reset` against production.
 
-1. Set `NEXT_PUBLIC_SITE_URL`, `BACKEND_API_URL`, `BACKEND_API_KEY`, `REVALIDATE_SECRET` and `CONTENT_REVALIDATE_SECONDS`.
-2. Set the backend's `SITE_REVALIDATE_URL` to `https://www.example.com/api/revalidate`, with the matching secret.
+## 7. Admin credentials
 
-**Production checklist:**
-- [ ] Strong unique values for `PUBLIC_API_KEY`, `APP_ENCRYPTION_KEY` and the revalidate secret
-- [ ] Owner account with 2FA; local test account removed
-- [ ] SMTP configured, and lead notification emails set in Admin → System
+There are no default passwords. Create the first Owner in one of these ways:
+
+- **Online database:** use **`SETUP ONLINE DATABASE.bat`**. It creates the account (or resets it if it exists) and prints the password once.
+- **CLI:**
+
+  ```bash
+  npm run admin:create -- --email owner@company.com --name "Jane Smith"
+  ```
+
+  This prints a strong temporary password. Add `--reset` for a locked-out account.
+
+After signing in at `/admin`:
+- Change the password and turn on 2FA in **My account**.
+- Add staff in **Users** with the least-privileged role (Owner, Administrator, Editor, Dispatcher).
+
+The local database has the test account `owner@example.com` / `LocalDevOnly-2026`. It exists only on your computer, never online.
+
+## 8. How the website gets its data
+
+[`src/lib/api/index.ts`](../src/lib/api/index.ts) picks the provider automatically:
+
+| Condition | Provider | Use |
+|---|---|---|
+| `DATABASE_URL` set | [`direct.ts`](../src/lib/api/direct.ts): database via `public.service` | Normal setup: one server |
+| `BACKEND_API_URL` set | [`http.ts`](../src/lib/api/http.ts): a separately hosted API | Optional, if you ever split the backend out |
+| neither | [`mock/`](../src/lib/api/mock): built-in sample data | UI work without a database |
+
+**Caching:** content is cached under the `content` tag for `CONTENT_REVALIDATE_SECONDS`. Every admin edit calls `POST /api/revalidate` on the same site, so changes appear on the next page view.
+
+**Builds:** `next build` reads the database, so `DATABASE_URL` must be set during the build. Vercel provides it automatically.
+
+## 9. Production deployment
+
+Follow **[DEPLOY-VERCEL.md](DEPLOY-VERCEL.md)**. It covers one Vercel project with Neon Postgres and Vercel Blob.
+
+Other hosts (any Node server or Docker) work too:
+
+1. Install the dependencies:
+
+   ```bash
+   npm ci && npm --prefix admin ci
+   ```
+
+2. Apply migrations and build:
+
+   ```bash
+   npm run db:deploy && npm run build
+   ```
+
+3. Start the server behind HTTPS:
+
+   ```bash
+   npm start
+   ```
+
+4. Set `TRUST_PROXY=1`.
+5. Keep `backend/uploads` on a persistent disk, or set `BLOB_READ_WRITE_TOKEN`.
+
+**Production checklist**
+
+- [ ] Strong unique `PUBLIC_API_KEY`, `APP_ENCRYPTION_KEY`, `REVALIDATE_SECRET`
+- [ ] Owner account with 2FA
+- [ ] SMTP set up, and lead notification emails set
 - [ ] Real business info, phone and hours entered in Admin (replace all placeholders)
-- [ ] `robots` → allow indexing enabled only on production
-- [ ] Database and `uploads/` backups scheduled
-- [ ] Captcha (Turnstile) enabled if spam appears; hooks are ready in the form and API
-- [ ] Multi-instance API: swap the in-memory rate-limit store for Redis (`rate-limit-redis`)
+- [ ] Database backups (Neon has point-in-time restore)
+- [ ] Captcha (Turnstile) if spam appears; hooks are ready
+- [ ] High traffic: Redis-backed rate limiting (Upstash)

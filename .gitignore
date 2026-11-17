@@ -15,3 +15,4 @@ tools/logs/
 tools/vercel-env.txt
 .vercel/
 .claude/
+public/admin/

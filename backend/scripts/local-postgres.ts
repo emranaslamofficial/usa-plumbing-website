@@ -2,7 +2,7 @@
  * Runs a real PostgreSQL server locally WITHOUT installing Postgres system-wide
  * (binaries come from the `embedded-postgres` npm package). Development only.
  *
- *   npm run db:local        → starts Postgres on port 5433, data in ./.pgdata
+ *   npm run db:local        → starts Postgres on port 5433, data in backend/.pgdata
  *
  * DATABASE_URL=postgresql://plumbing:plumbing@localhost:5433/plumbing
  * In production use a managed PostgreSQL (Neon, Supabase, RDS, Cloud SQL...).
@@ -11,7 +11,7 @@ import EmbeddedPostgres from "embedded-postgres";
 import { existsSync } from "node:fs";
 import path from "node:path";
 
-const dataDir = path.resolve(".pgdata");
+const dataDir = path.resolve(import.meta.dirname, "../.pgdata");
 const pg = new EmbeddedPostgres({
   databaseDir: dataDir,
   user: "plumbing",

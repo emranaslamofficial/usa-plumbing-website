@@ -1,5 +1,5 @@
-import { prisma, type Prisma } from "../db.js";
-import { liveWhere, livePostWhere } from "../lib/content.js";
+import { prisma, type Prisma } from "../db";
+import { liveWhere, livePostWhere } from "../lib/content";
 
 /** Converts DB rows into the JSON shapes defined in the website's src/types/index.ts. */
 

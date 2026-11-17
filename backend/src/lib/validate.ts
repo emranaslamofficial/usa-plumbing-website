@@ -1,6 +1,6 @@
 import type { Request } from "express";
 import { z, type ZodType } from "zod";
-import { unprocessable, zodDetails } from "./http.js";
+import { unprocessable, zodDetails } from "./http";
 
 /** Parse + validate untrusted input. Throws a 422 with field errors on failure. */
 export function parse<T extends ZodType>(schema: T, input: unknown): z.infer<T> {

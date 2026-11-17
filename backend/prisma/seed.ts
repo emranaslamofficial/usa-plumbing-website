@@ -7,18 +7,18 @@
  *
  * Content comes from the website's Phase 1 mock data so nothing is lost in the move to the CMS.
  */
-import "dotenv/config";
+import "../load-env";
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { prisma } from "../src/db.js";
-import { PERMISSIONS, DEFAULT_ROLES } from "../src/auth/permissions.js";
-import { hashPassword } from "../src/auth/password.js";
-import { importKeywords, parseKeywordFile, normalizeKeyword } from "../src/modules/keywords.service.js";
-import { siteSettings } from "../../src/lib/api/mock/data/site.js";
-import { services } from "../../src/lib/api/mock/data/services.js";
-import { locations } from "../../src/lib/api/mock/data/locations.js";
-import { blogPosts, blogCategories, authors } from "../../src/lib/api/mock/data/blog.js";
+import { prisma } from "../src/db";
+import { PERMISSIONS, DEFAULT_ROLES } from "../src/auth/permissions";
+import { hashPassword } from "../src/auth/password";
+import { importKeywords, parseKeywordFile, normalizeKeyword } from "../src/modules/keywords.service";
+import { siteSettings } from "../../src/lib/api/mock/data/site";
+import { services } from "../../src/lib/api/mock/data/services";
+import { locations } from "../../src/lib/api/mock/data/locations";
+import { blogPosts, blogCategories, authors } from "../../src/lib/api/mock/data/blog";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const KEYWORD_SHEET = path.join(ROOT, "USA Plumbing Services SEO Keyword List.xlsx");

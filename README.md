@@ -6,15 +6,15 @@ A lead-generation website for a US plumbing company, built with **Next.js 16 (Ap
 
 ---
 
-## Going live (GitHub + Vercel)
+## Going live (Vercel: one project, one domain)
 
-Step-by-step guide: **[docs/DEPLOY-VERCEL.md](docs/DEPLOY-VERCEL.md)**. The website and the admin panel each get their own Vercel project, backed by a Neon database and Vercel Blob for images.
+The website, the admin panel (`/admin`) and the API (`/api/v1`) run together as **one** Vercel project. Step-by-step guide: **[docs/DEPLOY-VERCEL.md](docs/DEPLOY-VERCEL.md)**.
 
 ## Easiest way to run it (Windows, nothing to install)
 
 1. Double-click **`START WEBSITE.bat`** in this folder.
 2. Wait for "Everything is running" (about 20 seconds; the first run takes longer).
-3. Open the website at **http://localhost:3000** and the admin panel at **http://localhost:4000/admin**.
+3. Open the website at **http://localhost:3000** and the admin panel at **http://localhost:3000/admin**.
 
 Keep that window open while you use the site. To stop everything, press **Ctrl+C** in it or double-click **`STOP WEBSITE.bat`**.
 

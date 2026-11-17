@@ -2,16 +2,16 @@ import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import * as OTPAuth from "otpauth";
-import { prisma } from "../db.js";
-import { env } from "../config/env.js";
-import { body } from "../lib/validate.js";
-import { ok, unauthorized, AppError, badRequest } from "../lib/http.js";
-import { audit } from "../lib/audit.js";
-import { decrypt, encrypt, randomToken, sha256 } from "../lib/crypto.js";
-import { sendMail } from "../lib/mailer.js";
-import { background } from "../lib/background.js";
-import { burnPasswordCheck, hashPassword, passwordPolicy, verifyPassword } from "../auth/password.js";
-import { clearSessionCookies, createSession, requireAuth } from "../auth/session.js";
+import { prisma } from "../db";
+import { env } from "../config/env";
+import { body } from "../lib/validate";
+import { ok, unauthorized, AppError, badRequest } from "../lib/http";
+import { audit } from "../lib/audit";
+import { decrypt, encrypt, randomToken, sha256 } from "../lib/crypto";
+import { sendMail } from "../lib/mailer";
+import { background } from "../lib/background";
+import { burnPasswordCheck, hashPassword, passwordPolicy, verifyPassword } from "../auth/password";
+import { clearSessionCookies, createSession, requireAuth } from "../auth/session";
 
 export const authRouter = Router();
 

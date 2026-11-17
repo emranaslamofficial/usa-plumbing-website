@@ -13,7 +13,7 @@ import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const BACKEND = path.join(ROOT, "backend");
+const BIN = (p) => path.join(ROOT, "node_modules", p);
 const OUT = path.join(ROOT, "tools", "vercel-env.txt");
 const rl = readline.createInterface({ input: process.stdin, terminal: false });
 const lines = rl[Symbol.asyncIterator]();
@@ -49,18 +49,18 @@ delete env.ADMIN_PASSWORD;
 
 function run(label, args, extraEnv = {}) {
   console.log(`\n> ${label}...`);
-  const r = spawnSync(process.execPath, args, { cwd: BACKEND, env: { ...env, ...extraEnv }, stdio: "inherit" });
+  const r = spawnSync(process.execPath, args, { cwd: ROOT, env: { ...env, ...extraEnv }, stdio: "inherit" });
   if (r.status !== 0) {
     console.log(`\nFAILED: ${label}. Check the database URL and your internet connection, then run this again.`);
     process.exit(1);
   }
 }
 
-run("Creating tables", [path.join(BACKEND, "node_modules/prisma/build/index.js"), "migrate", "deploy"]);
-if (!existsSync(path.join(BACKEND, "src/generated/prisma/client.ts"))) run("Generating database client", [path.join(BACKEND, "node_modules/prisma/build/index.js"), "generate"]);
-run("Loading content, roles and keywords", [path.join(BACKEND, "node_modules/tsx/dist/cli.mjs"), "prisma/seed.ts"]);
+run("Creating tables", [BIN("prisma/build/index.js"), "migrate", "deploy", "--config", "backend/prisma.config.ts"]);
+if (!existsSync(path.join(ROOT, "backend/src/generated/prisma/client.ts"))) run("Generating database client", [BIN("prisma/build/index.js"), "generate", "--config", "backend/prisma.config.ts"]);
+run("Loading content, roles and keywords", [BIN("tsx/dist/cli.mjs"), "backend/prisma/seed.ts"]);
 // Creates the Owner account, or resets its password if it already exists, so the password shown below always works
-run("Creating admin account", [path.join(BACKEND, "node_modules/tsx/dist/cli.mjs"), "scripts/create-admin.ts", "--email", email, "--name", name, "--reset"], { ADMIN_PASSWORD: adminPassword });
+run("Creating admin account", [BIN("tsx/dist/cli.mjs"), "backend/scripts/create-admin.ts", "--email", email, "--name", name, "--reset"], { ADMIN_PASSWORD: adminPassword });
 
 // Secrets for Vercel (kept if the file already exists, so re-running doesn't break a live site)
 let secrets = { PUBLIC_API_KEY: randomBytes(32).toString("base64url"), APP_ENCRYPTION_KEY: randomBytes(32).toString("hex"), REVALIDATE_SECRET: randomBytes(24).toString("base64url") };
@@ -79,22 +79,19 @@ const text = `# Values for Vercel — KEEP PRIVATE. Never commit or share this f
 #   email:    ${email}
 #   password: ${adminPassword}
 
-# ===== Backend project (root directory: backend) — Settings -> Environment Variables =====
+# ===== Vercel project → Settings → Environment Variables (add each line) =====
 PUBLIC_API_KEY=${secrets.PUBLIC_API_KEY}
 APP_ENCRYPTION_KEY=${secrets.APP_ENCRYPTION_KEY}
-SITE_REVALIDATE_SECRET=${secrets.REVALIDATE_SECRET}
-API_PUBLIC_URL=https://YOUR-BACKEND.vercel.app
-SITE_URL=https://YOUR-WEBSITE.vercel.app
-SITE_REVALIDATE_URL=https://YOUR-WEBSITE.vercel.app/api/revalidate
-# DATABASE_URL, DATABASE_URL_UNPOOLED -> added automatically when you connect the Neon database
-# BLOB_READ_WRITE_TOKEN               -> added automatically when you connect a Blob store
-
-# ===== Website project (root directory: ./) — Settings -> Environment Variables =====
-BACKEND_API_KEY=${secrets.PUBLIC_API_KEY}
 REVALIDATE_SECRET=${secrets.REVALIDATE_SECRET}
-BACKEND_API_URL=https://YOUR-BACKEND.vercel.app
-NEXT_PUBLIC_SITE_URL=https://YOUR-WEBSITE.vercel.app
 CONTENT_REVALIDATE_SECONDS=300
+
+# Your site's address. Use the .vercel.app address Vercel gives you, or your own domain later:
+NEXT_PUBLIC_SITE_URL=https://YOUR-PROJECT.vercel.app
+SITE_URL=https://YOUR-PROJECT.vercel.app
+
+# Added automatically by Vercel when you connect storage — don't add these yourself:
+#   DATABASE_URL, DATABASE_URL_UNPOOLED   (Neon database)
+#   BLOB_READ_WRITE_TOKEN                 (Blob image storage)
 `;
 writeFileSync(OUT, text);
 

@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma, LeadStatus, LeadSource, type Prisma } from "../db.js";
-import { requirePermission } from "../auth/session.js";
-import { body, cleanText, idParam, pagination, parse } from "../lib/validate.js";
-import { created, notFound, ok, pageMeta } from "../lib/http.js";
-import { audit } from "../lib/audit.js";
+import { prisma, LeadStatus, LeadSource, type Prisma } from "../db";
+import { requirePermission } from "../auth/session";
+import { body, cleanText, idParam, pagination, parse } from "../lib/validate";
+import { created, notFound, ok, pageMeta } from "../lib/http";
+import { audit } from "../lib/audit";
 
 export const leadsRouter = Router();
 export const contactMessagesRouter = Router();
@@ -144,7 +144,7 @@ leadsRouter.post("/", requirePermission("leads:write"), async (req, res) => {
       source: z.enum(["PHONE", "MANUAL"]).default("PHONE"),
     }),
   );
-  const { randomToken, hmac } = await import("../lib/crypto.js");
+  const { randomToken, hmac } = await import("../lib/crypto");
   const lead = await prisma.lead.create({
     data: {
       ...d,

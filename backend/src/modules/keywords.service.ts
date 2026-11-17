@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import { parse as parseCsv } from "csv-parse/sync";
-import { prisma, KeywordIntent, KeywordPriority, KeywordRole, KeywordStatus } from "../db.js";
+import { prisma, KeywordIntent, KeywordPriority, KeywordRole, KeywordStatus } from "../db";
 
 export const normalizeKeyword = (k: string) => k.toLowerCase().replace(/\s+/g, " ").trim();
 

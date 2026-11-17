@@ -15,7 +15,14 @@ export async function POST(req: Request) {
   } catch {
     return new NextResponse(null, { status: 400 });
   }
-  if (process.env.BACKEND_API_URL) {
+  if (process.env.DATABASE_URL) {
+    try {
+      const pub = await import("../../../../backend/src/modules/public.service");
+      await pub.recordCtaClick(body, { ip: clientIp(req), userAgent: req.headers.get("user-agent")?.slice(0, 300) ?? undefined });
+    } catch {
+      /* tracking must never break the site */
+    }
+  } else if (process.env.BACKEND_API_URL) {
     try {
       await backendPost("/track/cta", body, { "X-Client-IP": clientIp(req), "X-Client-User-Agent": req.headers.get("user-agent")?.slice(0, 300) ?? "" });
     } catch {

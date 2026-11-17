@@ -1,6 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "./generated/prisma/client.js";
-import { env } from "./config/env.js";
+import { PrismaClient } from "./generated/prisma/client";
+import { env } from "./config/env";
 
 export const prisma = new PrismaClient({
   // Small pool: on Vercel every function instance has its own pool (use the pooled Neon URL)
@@ -8,4 +8,4 @@ export const prisma = new PrismaClient({
   log: env.isProd ? ["error"] : ["error", "warn"],
 });
 
-export * from "./generated/prisma/client.js";
+export * from "./generated/prisma/client";

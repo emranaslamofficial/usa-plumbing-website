@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { env } from "../config/env.js";
+import { env } from "../config/env";
 
 const KEY = Buffer.from(env.APP_ENCRYPTION_KEY, "hex");
 

@@ -1,20 +1,19 @@
 import { Router, raw } from "express";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { z } from "zod";
-import { prisma, type Prisma } from "../db.js";
-import { clientIp, requirePublicKey } from "../auth/session.js";
-import { cleanText, parse } from "../lib/validate.js";
-import { AppError, badRequest, created, notFound, ok, unprocessable, unauthorized } from "../lib/http.js";
-import { liveWhere, livePostWhere } from "../lib/content.js";
-import { hmac, safeEqual } from "../lib/crypto.js";
-import { env } from "../config/env.js";
+import { prisma, type Prisma } from "../db";
+import { clientIp, requirePublicKey } from "../auth/session";
+import { parse } from "../lib/validate";
+import { AppError, badRequest, created, notFound, ok, unauthorized } from "../lib/http";
+import { hmac, safeEqual } from "../lib/crypto";
+import { env } from "../config/env";
 import { createHmac } from "node:crypto";
-import { leadInputSchema, createLeadFromForm, attributionSchema } from "./leads.service.js";
-import { locationOut, postOut, postSummaryInclude, postSummaryOut, serviceOut, serviceSummaryOut, serviceSummarySelect, settingsOut } from "./public.serializers.js";
+import * as pub from "./public.service";
 
 /**
- * Public API consumed server-to-server by the Next.js website.
- * Every route requires the PUBLIC_API_KEY bearer token; visitors never call it directly.
+ * Public REST API (Bearer PUBLIC_API_KEY). The website itself calls public.service.ts
+ * in-process; these routes are for external/headless use and server-to-server clients.
+ * All logic lives in public.service.ts.
  */
 export const publicRouter = Router();
 publicRouter.use(requirePublicKey);
@@ -29,238 +28,58 @@ const limiter = (limit: number, windowMin: number) =>
     message: { success: false, error: { code: "RATE_LIMITED", message: "Too many submissions. Please call us instead." } },
   });
 
-// ── Settings & navigation ──
+const found = <T>(v: T | null, what: string) => {
+  if (!v) throw notFound(what);
+  return v;
+};
+const slug = (v: unknown) => String(v).slice(0, 200);
 
-publicRouter.get("/settings", async (_req, res) => ok(res, await settingsOut()));
-
-// ── Services ──
-
-publicRouter.get("/services", async (_req, res) => {
-  const items = await prisma.service.findMany({ where: { ...liveWhere() }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: serviceSummarySelect });
-  ok(res, items.map(serviceSummaryOut));
-});
-
-publicRouter.get("/services/:slug", async (req, res) => {
-  const s = await serviceOut(String(req.params.slug));
-  if (!s) throw notFound("Service");
-  ok(res, s);
-});
-
-// ── Locations ──
-
-publicRouter.get("/locations", async (_req, res) => {
-  const items = await prisma.serviceArea.findMany({ where: liveWhere(), orderBy: [{ sortOrder: "asc" }, { slug: "asc" }], include: { city: { include: { state: true } } } });
-  ok(res, items.map((a) => ({ id: a.id, slug: a.slug, city: a.city.name, stateCode: a.city.state.code, stateName: a.city.state.name, nearbyAreas: a.nearbyAreas })));
-});
-
-publicRouter.get("/locations/:slug", async (req, res) => {
-  const l = await locationOut(String(req.params.slug));
-  if (!l) throw notFound("Location");
-  ok(res, l);
-});
-
-// ── Blog ──
+publicRouter.get("/settings", async (_req, res) => ok(res, await pub.getSettings()));
+publicRouter.get("/services", async (_req, res) => ok(res, await pub.listServices()));
+publicRouter.get("/services/:slug", async (req, res) => ok(res, found(await pub.getService(slug(req.params.slug)), "Service")));
+publicRouter.get("/locations", async (_req, res) => ok(res, await pub.listLocations()));
+publicRouter.get("/locations/:slug", async (req, res) => ok(res, found(await pub.getLocation(slug(req.params.slug)), "Location")));
 
 publicRouter.get("/posts", async (req, res) => {
-  const q = parse(
-    z.object({
-      page: z.coerce.number().int().min(1).default(1),
-      pageSize: z.coerce.number().int().min(1).max(50).default(6),
-      category: z.string().max(80).optional(),
-      q: z.string().max(80).optional(),
-      slugs: z.string().max(2000).optional(),
-    }),
-    req.query,
-  );
-  if (q.slugs) {
-    const slugs = q.slugs.split(",").filter(Boolean).slice(0, 30);
-    const rows = await prisma.post.findMany({ where: { slug: { in: slugs }, ...livePostWhere() }, include: postSummaryInclude });
-    const bySlug = new Map(rows.map((r) => [r.slug, postSummaryOut(r)]));
-    return ok(res, { items: slugs.map((s) => bySlug.get(s)).filter(Boolean) });
-  }
-  const where: Prisma.PostWhereInput = {
-    AND: [
-      livePostWhere(),
-      q.category ? { category: { slug: q.category } } : {},
-      q.q
-        ? {
-            OR: [
-              { title: { contains: q.q, mode: "insensitive" } },
-              { excerpt: { contains: q.q, mode: "insensitive" } },
-              { intro: { contains: q.q, mode: "insensitive" } },
-              { tags: { some: { tag: { name: { contains: q.q, mode: "insensitive" } } } } },
-              { keywords: { some: { normalized: { contains: q.q.toLowerCase() } } } },
-            ],
-          }
-        : {},
-    ],
-  };
-  const total = await prisma.post.count({ where });
-  const totalPages = Math.max(1, Math.ceil(total / q.pageSize));
-  const page = Math.min(q.page, totalPages);
-  const rows = await prisma.post.findMany({ where, orderBy: { publishedAt: "desc" }, skip: (page - 1) * q.pageSize, take: q.pageSize, include: postSummaryInclude });
-  ok(res, { items: rows.map(postSummaryOut), page, pageSize: q.pageSize, total, totalPages });
+  if (typeof req.query.slugs === "string") return ok(res, { items: await pub.getPostsBySlugs(req.query.slugs.slice(0, 2000).split(",")) });
+  ok(res, await pub.listPosts(parse(pub.postQuerySchema, req.query)));
 });
+publicRouter.get("/posts/slugs", async (_req, res) => ok(res, await pub.listPostSlugs()));
+publicRouter.get("/posts/featured", async (_req, res) => ok(res, await pub.listFeaturedPosts()));
+publicRouter.get("/posts/popular", async (req, res) => ok(res, await pub.listPopularPosts(Number(req.query.limit) || 4)));
+publicRouter.get("/posts/:slug", async (req, res) => ok(res, found(await pub.getPost(slug(req.params.slug)), "Post")));
+publicRouter.get("/posts/:slug/related", async (req, res) => ok(res, await pub.listRelatedPosts(slug(req.params.slug), Number(req.query.limit) || 3)));
+publicRouter.get("/blog-categories", async (_req, res) => ok(res, await pub.listBlogCategories()));
+publicRouter.get("/authors/:id", async (req, res) => ok(res, found(await pub.getAuthor(slug(req.params.id)), "Author")));
 
-publicRouter.get("/posts/slugs", async (_req, res) => {
-  const rows = await prisma.post.findMany({ where: livePostWhere(), select: { slug: true, updatedAt: true }, orderBy: { publishedAt: "desc" } });
-  ok(res, rows.map((r) => ({ slug: r.slug, updatedAt: r.updatedAt.toISOString().slice(0, 10) })));
-});
-
-publicRouter.get("/posts/featured", async (_req, res) => {
-  const rows = await prisma.post.findMany({ where: { ...livePostWhere(), isFeatured: true }, orderBy: { publishedAt: "desc" }, take: 5, include: postSummaryInclude });
-  ok(res, rows.map(postSummaryOut));
-});
-
-publicRouter.get("/posts/popular", async (req, res) => {
-  const { limit } = parse(z.object({ limit: z.coerce.number().int().min(1).max(20).default(4) }), req.query);
-  const rows = await prisma.post.findMany({ where: { ...livePostWhere(), isPopular: true }, orderBy: { publishedAt: "desc" }, take: limit, include: postSummaryInclude });
-  ok(res, rows.map(postSummaryOut));
-});
-
-publicRouter.get("/posts/:slug", async (req, res) => {
-  const p = await postOut(String(req.params.slug));
-  if (!p) throw notFound("Post");
-  ok(res, p);
-});
-
-publicRouter.get("/posts/:slug/related", async (req, res) => {
-  const { limit } = parse(z.object({ limit: z.coerce.number().int().min(1).max(12).default(3) }), req.query);
-  const post = await prisma.post.findFirst({ where: { slug: String(req.params.slug), ...livePostWhere() }, include: { services: true } });
-  if (!post) return ok(res, []);
-  const serviceIds = post.services.map((s) => s.serviceId);
-  const candidates = await prisma.post.findMany({ where: { ...livePostWhere(), NOT: { id: post.id } }, include: { ...postSummaryInclude, services: { select: { serviceId: true } } }, take: 200, orderBy: { publishedAt: "desc" } });
-  const score = (c: (typeof candidates)[number]) => (c.categoryId === post.categoryId ? 2 : 0) + c.services.filter((s) => serviceIds.includes(s.serviceId)).length;
-  ok(res, candidates.sort((a, b) => score(b) - score(a)).slice(0, limit).map(postSummaryOut));
-});
-
-publicRouter.get("/blog-categories", async (_req, res) => {
-  ok(res, await prisma.blogCategory.findMany({ orderBy: { sortOrder: "asc" }, select: { slug: true, name: true, description: true } }));
-});
-
-publicRouter.get("/authors/:id", async (req, res) => {
-  const a = await prisma.author.findUnique({ where: { id: String(req.params.id) }, include: { avatar: true } });
-  if (!a) throw notFound("Author");
-  ok(res, { id: a.id, name: a.name, role: a.role, bio: a.bio, avatar: a.avatar?.url });
-});
-
-// ── Pages, FAQs, testimonials ──
-
-publicRouter.get("/pages", async (_req, res) => {
-  const rows = await prisma.page.findMany({ where: liveWhere(), select: { slug: true, updatedAt: true } });
-  ok(res, rows.map((r) => ({ slug: r.slug, updatedAt: r.updatedAt.toISOString().slice(0, 10) })));
-});
-
-publicRouter.get("/pages/:slug", async (req, res) => {
-  const p = await prisma.page.findFirst({
-    where: { slug: String(req.params.slug), ...liveWhere() },
-    include: { seo: { include: { ogImage: true } }, faqs: { where: { isActive: true }, orderBy: { sortOrder: "asc" } }, keywords: { select: { keyword: true, role: true } } },
-  });
-  if (!p) throw notFound("Page");
-  const { seoOut } = await import("./public.serializers.js");
-  // Fill {{tokens}} from Business Settings so legal pages never hardcode business details
-  const s = await settingsOut();
-  const tokens: Record<string, string> = {
-    businessName: s.businessName,
-    legalName: s.legalName,
-    email: s.email,
-    phone: s.phone.display,
-    address: `${s.address.street}, ${s.address.city}, ${s.address.region} ${s.address.postalCode}`,
-    trustFootnote: s.trustFootnote.replace(/^\*/, ""),
-    serviceAreaLabel: s.serviceAreaLabel,
-  };
-  const fill = (v: unknown): unknown =>
-    typeof v === "string" ? v.replace(/\{\{(\w+)\}\}/g, (m, k: string) => tokens[k] ?? m) : Array.isArray(v) ? v.map(fill) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fill(x)])) : v;
-  ok(res, {
-    slug: p.slug,
-    title: p.title,
-    intro: fill(p.intro),
-    body: fill(p.body),
-    faqs: p.faqs.map((f) => ({ question: f.question, answer: f.answer })),
-    updatedAt: p.updatedAt.toISOString().slice(0, 10),
-    seo: seoOut(p.seo, p.keywords, { title: p.title, description: p.intro.slice(0, 155) }),
-  });
-});
-
+publicRouter.get("/pages", async (_req, res) => ok(res, await pub.listPageSlugs()));
+publicRouter.get("/pages/:slug", async (req, res) => ok(res, found(await pub.getPage(slug(req.params.slug)), "Page")));
 publicRouter.get("/faqs", async (req, res) => {
   const { group } = parse(z.object({ group: z.string().regex(/^[a-z0-9-]+$/).max(40) }), req.query);
-  const rows = await prisma.faq.findMany({ where: { group, isActive: true }, orderBy: { sortOrder: "asc" }, select: { question: true, answer: true } });
-  ok(res, rows);
+  ok(res, await pub.listFaqs(group));
 });
-
-publicRouter.get("/testimonials", async (_req, res) => {
-  const rows = await prisma.testimonial.findMany({ where: { isPublished: true, isVerified: true }, orderBy: { sortOrder: "asc" }, include: { service: { select: { name: true } } } });
-  ok(res, rows.map((t) => ({ id: t.id, authorName: t.authorName, location: t.location, rating: t.rating, body: t.body, source: t.source, sourceUrl: t.sourceUrl, serviceName: t.service?.name })));
-});
-
-// ── SEO infrastructure ──
-
-publicRouter.get("/redirects", async (_req, res) => {
-  ok(res, await prisma.redirect.findMany({ where: { isActive: true }, select: { source: true, destination: true, statusCode: true } }));
-});
-
-/** Records a redirect hit (called by the website when it serves a redirect). */
+publicRouter.get("/testimonials", async (_req, res) => ok(res, await pub.listTestimonials()));
+publicRouter.get("/redirects", async (_req, res) => ok(res, await pub.listRedirects()));
 publicRouter.post("/redirects/hit", async (req, res) => {
   const { source } = parse(z.object({ source: z.string().max(500) }), req.body);
-  await prisma.redirect.updateMany({ where: { source }, data: { hits: { increment: 1 } } });
+  await pub.recordRedirectHit(source);
   ok(res, { recorded: true });
 });
+publicRouter.get("/robots", async (_req, res) => ok(res, await pub.getRobots()));
 
-publicRouter.get("/robots", async (_req, res) => {
-  const row = await prisma.systemSetting.findUnique({ where: { key: "robots" } });
-  ok(res, (row?.value as object) ?? { allowIndexing: true, disallow: ["/api/"], extra: "" });
-});
-
-// ── Lead intake ──
+function rethrow(err: unknown): never {
+  if (err instanceof pub.PublicInputError) throw new AppError(err.status, err.status === 429 ? "RATE_LIMITED" : "VALIDATION_ERROR", err.message, err.details);
+  throw err;
+}
 
 publicRouter.post("/leads", limiter(5, 10), async (req, res) => {
-  const input = parse(leadInputSchema, req.body);
-  try {
-    const result = await createLeadFromForm(input, { ip: clientIp(req), userAgent: req.get("x-client-user-agent") ?? req.get("user-agent") });
-    created(res, { referenceId: result.referenceId, duplicate: Boolean(result.duplicate) });
-  } catch (err) {
-    if ((err as { field?: string }).field === "serviceSlug") throw unprocessable("Please choose a service from the list.", { serviceSlug: "Please choose a service from the list." });
-    throw err;
-  }
+  const meta = { ip: clientIp(req), userAgent: req.get("x-client-user-agent") ?? req.get("user-agent") };
+  created(res, await pub.submitLead(req.body, meta).catch(rethrow));
 });
 
-// ── Conversion tracking ──
-
-const ctaSchema = z.object({
-  type: z.enum(["CALL", "REQUEST_SERVICE", "SMS", "EMAIL"]),
-  placement: cleanText(80).optional(),
-  target: cleanText(200).optional(),
-  pagePath: z.string().max(500).regex(/^\//),
-  visitorId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/).optional(),
-  attribution: attributionSchema,
-});
-
-/**
- * Records a CTA click. A CALL click means the visitor tapped a tel: link — it does
- * NOT mean a call connected. Confirmed calls only come from /webhooks/calls/:provider.
- */
 publicRouter.post("/track/cta", limiter(60, 10), async (req, res) => {
-  const d = parse(ctaSchema, req.body);
-  const a = d.attribution;
-  await prisma.ctaClickEvent.create({
-    data: {
-      type: d.type,
-      placement: d.placement,
-      target: d.target,
-      pagePath: d.pagePath,
-      visitorId: d.visitorId,
-      deviceType: a.deviceType ?? "UNKNOWN",
-      referrer: a.referrer,
-      landingPage: a.landingPage,
-      utmSource: a.utmSource,
-      utmMedium: a.utmMedium,
-      utmCampaign: a.utmCampaign,
-      utmTerm: a.utmTerm,
-      utmContent: a.utmContent,
-      ipHash: hmac(clientIp(req)),
-      userAgent: (req.get("x-client-user-agent") ?? "").slice(0, 300) || null,
-    },
-  });
+  const meta = { ip: clientIp(req), userAgent: req.get("x-client-user-agent") ?? "" };
+  await pub.recordCtaClick(req.body, meta).catch(rethrow);
   created(res, { recorded: true });
 });
 

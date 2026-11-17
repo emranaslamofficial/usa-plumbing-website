@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma } from "../db.js";
-import { requirePermission } from "../auth/session.js";
-import { crudRouter } from "../lib/crud.js";
-import { cleanText, pagination, parse, slugSchema } from "../lib/validate.js";
-import { badRequest, ok, pageMeta } from "../lib/http.js";
+import { prisma } from "../db";
+import { requirePermission } from "../auth/session";
+import { crudRouter } from "../lib/crud";
+import { cleanText, pagination, parse, slugSchema } from "../lib/validate";
+import { badRequest, ok, pageMeta } from "../lib/http";
 
 const slugOpt = slugSchema.optional();
 

@@ -1,6 +1,6 @@
 import type { Request } from "express";
-import { prisma } from "../db.js";
-import { logger } from "./logger.js";
+import { prisma } from "../db";
+import { logger } from "./logger";
 
 const SENSITIVE = new Set(["passwordHash", "password", "twoFactorSecret", "tokenHash"]);
 

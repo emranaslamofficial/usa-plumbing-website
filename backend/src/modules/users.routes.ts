@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma } from "../db.js";
-import { requirePermission } from "../auth/session.js";
-import { body, cleanText, idParam, parse } from "../lib/validate.js";
-import { badRequest, conflict, created, forbidden, notFound, ok } from "../lib/http.js";
-import { audit } from "../lib/audit.js";
-import { hashPassword, passwordPolicy } from "../auth/password.js";
-import { ALL_PERMISSIONS } from "../auth/permissions.js";
+import { prisma } from "../db";
+import { requirePermission } from "../auth/session";
+import { body, cleanText, idParam, parse } from "../lib/validate";
+import { badRequest, conflict, created, forbidden, notFound, ok } from "../lib/http";
+import { audit } from "../lib/audit";
+import { hashPassword, passwordPolicy } from "../auth/password";
+import { ALL_PERMISSIONS } from "../auth/permissions";
 
 export const usersRouter = Router();
 export const rolesRouter = Router();

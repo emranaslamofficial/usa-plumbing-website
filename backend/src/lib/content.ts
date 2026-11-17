@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { prisma, ContentStatus, type Prisma } from "../db.js";
-import { env } from "../config/env.js";
-import { logger } from "./logger.js";
-import { background } from "./background.js";
-import { cleanText, optionalUrl, safeHref, slugify } from "./validate.js";
-import { conflict } from "./http.js";
+import { prisma, ContentStatus, type Prisma } from "../db";
+import { env } from "../config/env";
+import { logger } from "./logger";
+import { background } from "./background";
+import { cleanText, optionalUrl, safeHref, slugify } from "./validate";
+import { conflict } from "./http";
 
 // ───────────── Publish state ─────────────
 

@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { prisma, LeadSource, PreferredTime, DeviceType } from "../db.js";
-import { cleanText } from "../lib/validate.js";
-import { hmac, randomToken } from "../lib/crypto.js";
-import { sendMail } from "../lib/mailer.js";
-import { env } from "../config/env.js";
-import { logger } from "../lib/logger.js";
-import { background } from "../lib/background.js";
+import { prisma, LeadSource, PreferredTime, DeviceType } from "../db";
+import { cleanText } from "../lib/validate";
+import { hmac, randomToken } from "../lib/crypto";
+import { sendMail } from "../lib/mailer";
+import { env } from "../config/env";
+import { logger } from "../lib/logger";
+import { background } from "../lib/background";
 
 const MIN_FILL_MS = 2500;
 const DUPLICATE_WINDOW_MIN = 15;
