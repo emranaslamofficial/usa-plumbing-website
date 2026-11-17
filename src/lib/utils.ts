@@ -20,6 +20,12 @@ function blockText(b: ContentBlock): string {
       return b.items.join(" ");
     case "callout":
       return `${b.title ?? ""} ${b.text}`;
+    case "quote":
+      return `${b.text} ${b.cite ?? ""}`;
+    case "table":
+      return [b.caption ?? "", ...b.headers, ...b.rows.flat()].join(" ");
+    case "image":
+      return b.caption ?? "";
     default:
       return b.text;
   }
